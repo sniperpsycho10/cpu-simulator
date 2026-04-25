@@ -1,0 +1,53 @@
+from cpu.registers import Registers
+from cpu.memory import Memory
+from cpu.instructions import (
+    execute_load,
+    execute_store,
+    execute_add,
+    execute_sub
+)
+
+
+class CPU:
+    def __init__(self):
+        self.pc = 0
+        self.registers = Registers()
+        self.memory = Memory()
+        self.program = []
+
+    def load_program(self, program):
+        self.program = program
+
+    def run(self):
+        while self.pc < len(self.program):
+            instruction = self.program[self.pc]
+
+            print(f"\nPC: {self.pc}, Instruction: {instruction}")
+
+            self.execute(instruction)
+
+            print("Registers:", self.registers)
+
+            self.pc += 1
+
+    def execute(self, instruction):
+        opcode = instruction[0]
+
+        if opcode == "LOAD":
+            _, reg, addr = instruction
+            execute_load(self, reg, addr)
+
+        elif opcode == "STORE":
+            _, reg, addr = instruction
+            execute_store(self, reg, addr)
+
+        elif opcode == "ADD":
+            _, r1, r2 = instruction
+            execute_add(self, r1, r2)
+
+        elif opcode == "SUB":
+            _, r1, r2 = instruction
+            execute_sub(self, r1, r2)
+
+        else:
+            print(f"Unknown instruction: {opcode}")
