@@ -42,8 +42,12 @@ class CPU:
             execute_store(self, reg, addr)
 
         elif opcode == "ADD":
-            _, r1, r2 = instruction
-            execute_add(self, r1, r2)
+            _, dest, src1, src2 = instruction
+            execute_add(self, dest, src1, src2)
+
+        elif opcode == "SUB":
+            _, dest, src1, src2 = instruction
+            execute_sub(self, dest, src1, src2)
 
         elif opcode == "SUB":
             _, r1, r2 = instruction
