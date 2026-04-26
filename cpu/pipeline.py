@@ -12,7 +12,6 @@ class PipelineCPU:
         self.cycle = 0
         self.stall = False
 
-        # For table
         self.pipeline_log = {i: [] for i in range(len(self.program))}
 
     # ---------------- DONE ---------------- #
@@ -31,34 +30,39 @@ class PipelineCPU:
             self.pipeline_log[idx].append("")
         self.pipeline_log[idx].append(stage)
 
-    # ---------------- FULL HAZARD DETECTION ---------------- #
-    def is_hazard(self, instr):
+    # ---------------- FORWARDING ---------------- #
+    def get_value(self, reg):
+        # From MEM/WB (LOAD or ALU)
+        if self.MEM_WB:
+            _, dest, val, _ = self.MEM_WB
+            if dest == reg:
+                return val
+
+        # From EX/MEM (ALU only)
+        if self.EX_MEM and self.EX_MEM[0] == "ALU":
+            _, dest, val, _ = self.EX_MEM
+            if dest == reg:
+                return val
+
+        return self.cpu.registers.read(reg)
+
+    # ---------------- LOAD-USE HAZARD ---------------- #
+    def is_load_use_hazard(self, instr):
+        if not self.ID_EX:
+            return False
+
+        prev_instr, _ = self.ID_EX
+
+        if prev_instr[0] != "LOAD":
+            return False
+
+        load_dest = prev_instr[1]
         opcode = instr[0]
 
-        # Source registers
-        sources = []
         if opcode in ["ADD", "SUB"]:
-            sources = [instr[2], instr[3]]
+            return load_dest == instr[2] or load_dest == instr[3]
         elif opcode == "STORE":
-            sources = [instr[1]]
-
-        # Check all pipeline stages ahead
-        for stage in [self.ID_EX, self.EX_MEM]:
-            if not stage:
-                continue
-
-            prev = stage[0] if isinstance(stage[0], tuple) else stage
-
-            # Get destination register
-            if prev[0] == "LOAD":
-                dest = prev[1]
-            elif prev[0] == "ALU":
-                dest = prev[1]
-            else:
-                continue
-
-            if dest in sources:
-                return True
+            return load_dest == instr[1]
 
         return False
 
@@ -79,7 +83,7 @@ class PipelineCPU:
     # ---------------- FETCH ---------------- #
     def fetch(self):
         if self.stall:
-            return  # freeze IF
+            return
 
         if self.pc < len(self.program):
             instr = self.program[self.pc]
@@ -97,18 +101,15 @@ class PipelineCPU:
 
         instr, idx = self.IF_ID
 
-        if self.is_hazard(instr):
+        # Only LOAD-use hazard needs stall
+        if self.is_load_use_hazard(instr):
             print("STALL inserted")
             self.log(idx, "STALL")
 
-            # Insert bubble
             self.ID_EX = None
-
-            # Freeze IF
             self.stall = True
             return
 
-        # Normal flow
         self.ID_EX = (instr, idx)
         print("ID:", instr)
         self.log(idx, "ID")
@@ -124,21 +125,37 @@ class PipelineCPU:
         instr, idx = self.ID_EX
         opcode = instr[0]
 
+        forwarded = False
+
         if opcode == "ADD":
             _, dest, s1, s2 = instr
-            val = self.cpu.registers.read(s1) + self.cpu.registers.read(s2)
+            v1 = self.get_value(s1)
+            v2 = self.get_value(s2)
+
+            if v1 != self.cpu.registers.read(s1) or v2 != self.cpu.registers.read(s2):
+                forwarded = True
+
+            val = v1 + v2
             self.EX_MEM = ("ALU", dest, val, idx)
 
         elif opcode == "SUB":
             _, dest, s1, s2 = instr
-            val = self.cpu.registers.read(s1) - self.cpu.registers.read(s2)
+            v1 = self.get_value(s1)
+            v2 = self.get_value(s2)
+
+            if v1 != self.cpu.registers.read(s1) or v2 != self.cpu.registers.read(s2):
+                forwarded = True
+
+            val = v1 - v2
             self.EX_MEM = ("ALU", dest, val, idx)
 
         else:
             self.EX_MEM = (*instr, idx)
 
-        print("EX:", instr)
-        self.log(idx, "EX")
+        stage_name = "EX(FWD)" if forwarded else "EX"
+
+        print(stage_name + ":", instr)
+        self.log(idx, stage_name)
 
         self.ID_EX = None
 
@@ -157,7 +174,7 @@ class PipelineCPU:
 
         elif instr[0] == "STORE":
             _, reg, addr, _ = instr
-            val = self.cpu.registers.read(reg)
+            val = self.get_value(reg)  # forwarding for store
             self.cpu.memory.write(addr, val)
             self.MEM_WB = None
 
