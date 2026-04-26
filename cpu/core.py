@@ -49,9 +49,5 @@ class CPU:
             _, dest, src1, src2 = instruction
             execute_sub(self, dest, src1, src2)
 
-        elif opcode == "SUB":
-            _, r1, r2 = instruction
-            execute_sub(self, r1, r2)
-
         else:
             print(f"Unknown instruction: {opcode}")
