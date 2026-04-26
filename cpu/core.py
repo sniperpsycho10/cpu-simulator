@@ -1,4 +1,5 @@
 from cpu.registers import Registers
+from cpu.pipeline import PipelineCPU
 from cpu.memory import Memory
 from cpu.instructions import (
     execute_load,
@@ -18,17 +19,23 @@ class CPU:
     def load_program(self, program):
         self.program = program
 
-    def run(self):
-        while self.pc < len(self.program):
-            instruction = self.program[self.pc]
+    from cpu.pipeline import PipelineCPU
 
-            print(f"\nPC: {self.pc}, Instruction: {instruction}")
+    def run(self, pipelined=False):
+        if pipelined:
+            pipeline_cpu = PipelineCPU(self)
+            pipeline_cpu.run()
+        else:
+            while self.pc < len(self.program):
+                instruction = self.program[self.pc]
 
-            self.execute(instruction)
+                print(f"\nPC: {self.pc}, Instruction: {instruction}")
 
-            print("Registers:", self.registers)
+                self.execute(instruction)
 
-            self.pc += 1
+                print("Registers:", self.registers)
+
+                self.pc += 1
 
     def execute(self, instruction):
         opcode = instruction[0]

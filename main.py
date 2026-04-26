@@ -20,7 +20,7 @@ def main():
     program = parse_program(file_path)
 
     cpu.load_program(program)
-    cpu.run()
+    cpu.run(pipelined=True)
 
     print("\nFinal Memory[20]:", cpu.memory.read(20))
 
