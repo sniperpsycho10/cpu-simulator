@@ -23,6 +23,7 @@ cpu_sim/
 │   └── parser.py
 │
 ├── main.py
+├── performance_graph.py
 └── README.md
 ```
 
@@ -152,7 +153,7 @@ python main.py programs/sample.asm
 
 ## Run Graphs
 ```bash
-python performance_grpah.py     
+python performance_graph.py     
 ```
 
 
