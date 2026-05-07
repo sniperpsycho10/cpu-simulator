@@ -12,6 +12,11 @@ class PipelineCPU:
         self.cycle = 0
         self.stall = False
 
+        # Performance metrics
+        self.total_cycles = 0
+        self.stall_count = 0
+        self.cpi = 0
+
         self.pipeline_log = {i: [] for i in range(len(self.program))}
 
     # ---------------- DONE ---------------- #
@@ -32,13 +37,13 @@ class PipelineCPU:
 
     # ---------------- FORWARDING ---------------- #
     def get_value(self, reg):
-        # From MEM/WB (LOAD or ALU)
+        # Forward from MEM/WB
         if self.MEM_WB:
             _, dest, val, _ = self.MEM_WB
             if dest == reg:
                 return val
 
-        # From EX/MEM (ALU only)
+        # Forward from EX/MEM
         if self.EX_MEM and self.EX_MEM[0] == "ALU":
             _, dest, val, _ = self.EX_MEM
             if dest == reg:
@@ -61,6 +66,7 @@ class PipelineCPU:
 
         if opcode in ["ADD", "SUB"]:
             return load_dest == instr[2] or load_dest == instr[3]
+
         elif opcode == "STORE":
             return load_dest == instr[1]
 
@@ -70,6 +76,8 @@ class PipelineCPU:
     def run(self):
         while not self.is_done():
             self.cycle += 1
+            self.total_cycles += 1
+
             print(f"\nCycle {self.cycle}")
 
             self.write_back()
@@ -78,7 +86,17 @@ class PipelineCPU:
             self.decode()
             self.fetch()
 
+        # CPI Calculation
+        instruction_count = len(self.program)
+        self.cpi = self.total_cycles / instruction_count
+
         self.print_table()
+
+        print("\nPerformance Metrics")
+        print("-------------------")
+        print("Total Cycles:", self.total_cycles)
+        print("Stall Count :", self.stall_count)
+        print("CPI          :", round(self.cpi, 2))
 
     # ---------------- FETCH ---------------- #
     def fetch(self):
@@ -101,9 +119,12 @@ class PipelineCPU:
 
         instr, idx = self.IF_ID
 
-        # Only LOAD-use hazard needs stall
+        # Only load-use hazards stall
         if self.is_load_use_hazard(instr):
             print("STALL inserted")
+
+            self.stall_count += 1
+
             self.log(idx, "STALL")
 
             self.ID_EX = None
@@ -111,6 +132,7 @@ class PipelineCPU:
             return
 
         self.ID_EX = (instr, idx)
+
         print("ID:", instr)
         self.log(idx, "ID")
 
@@ -129,24 +151,34 @@ class PipelineCPU:
 
         if opcode == "ADD":
             _, dest, s1, s2 = instr
+
             v1 = self.get_value(s1)
             v2 = self.get_value(s2)
 
-            if v1 != self.cpu.registers.read(s1) or v2 != self.cpu.registers.read(s2):
+            if (
+                v1 != self.cpu.registers.read(s1)
+                or v2 != self.cpu.registers.read(s2)
+            ):
                 forwarded = True
 
             val = v1 + v2
+
             self.EX_MEM = ("ALU", dest, val, idx)
 
         elif opcode == "SUB":
             _, dest, s1, s2 = instr
+
             v1 = self.get_value(s1)
             v2 = self.get_value(s2)
 
-            if v1 != self.cpu.registers.read(s1) or v2 != self.cpu.registers.read(s2):
+            if (
+                v1 != self.cpu.registers.read(s1)
+                or v2 != self.cpu.registers.read(s2)
+            ):
                 forwarded = True
 
             val = v1 - v2
+
             self.EX_MEM = ("ALU", dest, val, idx)
 
         else:
@@ -155,6 +187,7 @@ class PipelineCPU:
         stage_name = "EX(FWD)" if forwarded else "EX"
 
         print(stage_name + ":", instr)
+
         self.log(idx, stage_name)
 
         self.ID_EX = None
@@ -169,20 +202,27 @@ class PipelineCPU:
 
         if instr[0] == "LOAD":
             _, reg, addr, _ = instr
+
             val = self.cpu.memory.read(addr)
+
             self.MEM_WB = ("WRITE", reg, val, idx)
 
         elif instr[0] == "STORE":
             _, reg, addr, _ = instr
-            val = self.get_value(reg)  # forwarding for store
+
+            val = self.get_value(reg)
+
             self.cpu.memory.write(addr, val)
+
             self.MEM_WB = None
 
         elif instr[0] == "ALU":
             _, reg, val, _ = instr
+
             self.MEM_WB = ("WRITE", reg, val, idx)
 
         print("MEM:", instr)
+
         self.log(idx, "MEM")
 
         self.EX_MEM = None
@@ -193,9 +233,11 @@ class PipelineCPU:
             return
 
         _, reg, val, idx = self.MEM_WB
+
         self.cpu.registers.write(reg, val)
 
         print("WB:", ("WRITE", reg, val))
+
         self.log(idx, "WB")
 
         self.MEM_WB = None
@@ -207,11 +249,14 @@ class PipelineCPU:
         print("\nPipeline Timing Diagram:\n")
 
         header = ["Instruction"] + [f"C{i+1}" for i in range(max_cycles)]
+
         print(" | ".join(h.center(12) for h in header))
+
         print("-" * (15 * len(header)))
 
         for i, instr in enumerate(self.program):
             row = [f"{instr[0]} {' '.join(map(str, instr[1:]))}"]
+
             stages = self.pipeline_log[i]
 
             for j in range(max_cycles):
