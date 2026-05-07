@@ -150,6 +150,12 @@ python main.py programs/sample.asm
 
 ---
 
+## Run Graphs
+```bash
+python performance_grpah.py     
+```
+
+
 # Final Features
 
 - Basic CPU simulation
@@ -166,3 +172,17 @@ python main.py programs/sample.asm
 # Author
 
 Built as a step-by-step learning project to understand CPU architecture and pipelined execution.
+
+# Performance Comparison
+
+Performance comparison was done between:
+
+- Phase 4 (stalling only)
+- Phase 5 (forwarding)
+
+Metrics compared:
+- Total cycles
+- CPI
+- Stall count
+
+Results showed forwarding reduced stalls and improved overall pipeline efficiency.
